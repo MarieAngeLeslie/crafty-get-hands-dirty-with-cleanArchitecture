@@ -1,4 +1,11 @@
 import { text } from "stream/consumers";
+import {
+    PostMessageCommand,
+    PostMessageUseCase,
+    Message,
+    MessageRepository,
+    DateProvider
+} from "../post-message.usecase";
 
 describe("Feature: Posting messages", () => {
     describe('Rule: A message can contain a maximum of 280 characteres', () => {
@@ -22,20 +29,37 @@ describe("Feature: Posting messages", () => {
     })
 });
 
-let message: { id: string, author: string, text: string, publishedAt: Date };
+
+let message: Message;
 let now: Date;
 
-function givenNowIs(_now: Date) {
-    now = _now;
+class InMemoryMessageRepository implements MessageRepository {
+    save(msg: Message): void {
+        msg = message;
+    }
 }
 
-function whenUserPostMessage(postMessageCommand: { id: string, text: string, author: string }) {
-    message = {
-        id: postMessageCommand.id,
-        text: postMessageCommand.text,
-        author: postMessageCommand.author,
-        publishedAt: new Date('2023-01-19T19:00:00.000Z')
+class StubDateProvider implements DateProvider {
+    now: Date;
+    getNow(): Date {
+        return this.now;
     }
+}
+
+const messageRepository = new InMemoryMessageRepository();
+const dateProvider = new StubDateProvider();
+
+const postMessageUseCase = new PostMessageUseCase(
+    messageRepository,
+    dateProvider
+);
+
+function givenNowIs(_now: Date) {
+    dateProvider.now = _now;
+}
+
+function whenUserPostMessage(postMessageCommand: PostMessageCommand) {
+    postMessageUseCase.handle(postMessageCommand);
 }
 
 function thenPostedMessageShouldBe(expectedMessage: {
