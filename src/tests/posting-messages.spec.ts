@@ -4,13 +4,15 @@ import {
     PostMessageUseCase,
     Message,
     MessageRepository,
-    DateProvider
+    DateProvider,
+    MessageTooLongError,
+    emptyMessageError
 } from "../post-message.usecase";
 
 describe("Feature: Posting messages", () => {
     describe('Rule: A message can contain a maximum of 280 characteres', () => {
         test('Alice can post a message on her timeline', () => {
-            givenNowIs(new Date('2023-01-19T1900:00.000Z'));// Etant donné que aujourd'hui on est le 19 janvier 2023
+            givenNowIs(new Date('2023-01-19T19:00:00.000Z'));// Etant donné que aujourd'hui on est le 19 janvier 2023
 
             //Quand le user post un message, le message a les informations qui suivent suivantes : 
             whenUserPostMessage({
@@ -26,16 +28,51 @@ describe("Feature: Posting messages", () => {
                 publishedAt: new Date('2023-01-19T19:00:00.000Z')
             })
         });
+
+        test('Alice can not post a message with more than 280 characters', () => {
+            const textWithMinLengthOf281 =
+                `Lorem ipsum, dolor sit amet consectetur adipisicing elit.
+                Vero molestias labore soluta maiores! Eaque libero accusantium maiores,
+                ipsum laboriosam accusamus voluptate cum sit facilis quidem soluta quo
+                delectus praesentium quam magnam commodi veniam qui modi? `
+
+            givenNowIs(new Date('2023-01-19T1900:00.000Z'));
+
+            whenUserPostMessage({
+                id: 'message-id',
+                author: 'Alice',
+                text: textWithMinLengthOf281
+            })
+
+            thenErrorShouldBe(MessageTooLongError);
+        })
+
+    })
+    describe('Rule: Message can not be empty', () => {
+        test("Alice can not post an empty message", () => {
+
+            givenNowIs(new Date('2023-01-19T19:00:00.000Z'));
+
+            whenUserPostMessage({
+                id: 'message-id',
+                author: 'Alice',
+                text: "",
+            });
+
+            thenErrorShouldBe(emptyMessageError);
+        })
+
     })
 });
 
 
 let message: Message;
-let now: Date;
+let thrownError: Error;
+
 
 class InMemoryMessageRepository implements MessageRepository {
     save(msg: Message): void {
-        msg = message;
+        message = msg;
     }
 }
 
@@ -59,14 +96,17 @@ function givenNowIs(_now: Date) {
 }
 
 function whenUserPostMessage(postMessageCommand: PostMessageCommand) {
-    postMessageUseCase.handle(postMessageCommand);
+    try {
+        postMessageUseCase.handle(postMessageCommand);
+    } catch (err) {
+        thrownError = err;
+    }
 }
 
-function thenPostedMessageShouldBe(expectedMessage: {
-    id: string,
-    author: string,
-    text: string,
-    publishedAt: Date
-}) {
+function thenPostedMessageShouldBe(expectedMessage: Message) {
     expect(expectedMessage).toEqual(message);
+}
+
+function thenErrorShouldBe(expectedErrorClass: new () => Error) {
+    expect(thrownError).toBeInstanceOf(expectedErrorClass)
 }
